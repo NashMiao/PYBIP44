@@ -93,4 +93,4 @@ class HDKey(object):
             k = keys[-1]
             klass = k.__class__
             keys.append(klass.from_parent(k, index))
-        return keys[-1]
+        return keys

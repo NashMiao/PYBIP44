@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
+import hashlib
+import hmac
 
+from pybip44.chain_private_key import ONTPrivateKey
+from pybip44.chain_public_key import ONTPublicKey
 from .hd_key import HDKey, HARDENED_HEXA
+
 
 class HDPublicKey(HDKey):
 
@@ -43,4 +48,25 @@ class HDPublicKey(HDKey):
 
     @staticmethod
     def from_parent(parent_key, i):
-        pass
+        if i & 0x80000000:
+            raise ValueError("Can't generate a hardened child key from a parent public key.")
+        else:
+            I = hmac.new(parent_key.chain_code,
+                         parent_key.compressed_bytes + i.to_bytes(length=4, byteorder='big'),
+                         hashlib.sha512).digest()
+            Il, Ir = I[:32], I[32:]
+            parse_Il = int.from_bytes(Il, 'big')
+            if parse_Il >= parent_key._key.curve_g_n:
+                return None
+
+            temp_priv_key = ONTPrivateKey(parse_Il)
+            Ki = temp_priv_key.public_key.point + parent_key._key.point
+            if Ki.IsInfinity:
+                return None
+
+            child_depth = parent_key.depth + 1
+            return HDPublicKey(public_key=ONTPublicKey(Ki),
+                               chain_code=Ir,
+                               index=i,
+                               depth=child_depth,
+                               parent_fingerprint=parent_key.fingerprint)
